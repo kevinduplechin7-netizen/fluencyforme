@@ -12,10 +12,18 @@
 */
 
 (() => {
-  const GPT_URL = "https://chatgpt.com/g/g-6958040e8ce881918400c643c84bbfc1-fluenthour-companion";
+  const COMPANION_GPT_URL = "https://chatgpt.com/g/g-6958040e8ce881918400c643c84bbfc1-fluenthour-companion";
+  const PHASE_ACTOR_GPT_URL = "https://chatgpt.com/g/g-695ca3f3a694819187975bb509bc15cb-fluent-hour-phase-actor";
+  const SESSION_ACTOR_GPT_URL = "https://chatgpt.com/g/g-695ca3f3a694819187975bb509bc15cb-fluent-hour-session-actor";
   const STORAGE_KEY = "fluenthour.profiles.v1";
   const DEFAULT_LIBRARY_PATH = "/library/perfect-hour-data.txt";
-  const INJECT_ID = "fh-companion-bridge";
+  const INJECT_ID_COMPANION = "fh-companion-bridge";
+  const INJECT_ID_ACTOR = "fh-phase-actor-bridge";
+  const INJECT_ID_SESSION_ACTOR = "fh-session-actor-bridge";
+
+  const COLLAPSE_KEY_COMPANION = "fh.bridge.collapsed.v1.companion";
+  const COLLAPSE_KEY_PHASE_ACTOR = "fh.bridge.collapsed.v1.phaseActor";
+  const COLLAPSE_KEY_SESSION_ACTOR = "fh.bridge.collapsed.v1.sessionActor";
 
   if (window.__FH_COMPANION_BRIDGE__) return;
   window.__FH_COMPANION_BRIDGE__ = true;
@@ -93,6 +101,60 @@
     return (s || "").replace(/\r\n/g, "\n");
   }
 
+  // --- collapsible cards --------------------------------------------------
+
+  function storageGet(key) {
+    try {
+      return localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  }
+
+  function storageSet(key, value) {
+    try {
+      localStorage.setItem(key, value);
+    } catch {
+      // ignore (e.g., private mode)
+    }
+  }
+
+  function applyCardCollapsedState(card, collapsed) {
+    if (!card) return;
+
+    const body = card.querySelector('[data-role="bridge-body"]');
+    if (body) body.style.display = collapsed ? "none" : "";
+
+    const toggleAction = card.getAttribute("data-toggle-action") || "";
+    const toggleBtn = toggleAction ? card.querySelector(`button[data-action="${toggleAction}"]`) : null;
+    if (toggleBtn) {
+      toggleBtn.textContent = collapsed ? "Show" : "Hide";
+      toggleBtn.setAttribute("aria-expanded", collapsed ? "false" : "true");
+    }
+  }
+
+  function initCollapsibleCard(card, storageKey, toggleAction) {
+    if (!card) return;
+    card.setAttribute("data-collapse-key", storageKey);
+    card.setAttribute("data-toggle-action", toggleAction);
+
+    const collapsed = storageGet(storageKey) === "1";
+    applyCardCollapsedState(card, collapsed);
+  }
+
+  function toggleCollapsibleCard(card) {
+    if (!card) return;
+
+    const key = card.getAttribute("data-collapse-key") || "";
+    const body = card.querySelector('[data-role="bridge-body"]');
+    const isCollapsed = !!(body && body.style.display === "none");
+    const next = !isCollapsed;
+
+    applyCardCollapsedState(card, next);
+    if (key) storageSet(key, next ? "1" : "0");
+  }
+
+
   // --- library parsing -----------------------------------------------------
 
   function parseSessionsFromText(rawText) {
@@ -119,10 +181,13 @@
         return line.trimStart().slice(prefix.length).trim();
       };
 
+      const sessionId = getField("Session ID:") || "";
+      const sessionIdea = getField("Session Idea:") || "";
+
       const title = getField("Title:") || "(Untitled session)";
       const levelRaw = getField("Level:") || "";
       const partner = getField("Partner:") || "";
-      const goal = getField("Goal:") || "";
+      const goal = getField("Goal (CLB):") || getField("Goal:") || "";
       const context = getField("Context:") || "";
       const correction = getField("Correction:") || "";
 
@@ -158,13 +223,15 @@
         }
 
         // New phase
-        const phaseMatch = line.match(/^PHASE\s+(\d+)\s*:\s*(.*?)\s*(?:\((\d+)m\))?\s*$/i);
+        const phaseMatch = line.match(/^PHASE\s+(\d+)(?:\s*:\s*(.*?)\s*(?:\((\d+)m\))?\s*)?$/i);
         if (phaseMatch) {
           pushCurrent();
           current = {
             index: parseInt(phaseMatch[1], 10) - 1,
             name: (phaseMatch[2] || "").trim() || `Phase ${phaseMatch[1]}`,
             minutes: phaseMatch[3] ? parseInt(phaseMatch[3], 10) : 10,
+            phaseId: "",
+            phaseIdea: "",
             purpose: "",
             humanSteps: [],
             aiScript: "",
@@ -179,6 +246,18 @@
         // Section headers
         if (line.startsWith("Name:")) {
           current.name = line.slice("Name:".length).trim() || current.name;
+          inHumanSteps = false;
+          inAiScript = false;
+          continue;
+        }
+        if (line.startsWith("Phase ID:")) {
+          current.phaseId = line.slice("Phase ID:".length).trim();
+          inHumanSteps = false;
+          inAiScript = false;
+          continue;
+        }
+        if (line.startsWith("Phase Idea:")) {
+          current.phaseIdea = line.slice("Phase Idea:".length).trim();
           inHumanSteps = false;
           inAiScript = false;
           continue;
@@ -243,6 +322,8 @@
       pushCurrent();
 
       sessions.push({
+        sessionId,
+        sessionIdea,
         title,
         levelKey,
         partner,
@@ -367,6 +448,8 @@
     lines.push("FluentHour — paste into FluentHour Companion GPT");
     lines.push("");
 
+    if (session?.sessionId) lines.push(`Session ID: ${session.sessionId}`);
+    if (session?.sessionIdea) lines.push(`Session Idea: ${session.sessionIdea}`);
     if (session?.title) lines.push(`Session: ${session.title}`);
     if (session?.levelKey || meta?.levelKey) lines.push(`Level: ${session.levelKey || meta.levelKey}`);
     if (meta?.partner) lines.push(`Helper mode: ${meta.partner}`);
@@ -378,6 +461,8 @@
     lines.push("");
 
     if (phase) {
+      if (phase?.phaseId) lines.push(`Phase ID: ${phase.phaseId}`);
+      if (phase?.phaseIdea) lines.push(`Phase Idea: ${phase.phaseIdea}`);
       lines.push(`Current phase: ${phase.name} (${phase.minutes}m)`);
       if (phase.purpose) lines.push(`Purpose: ${phase.purpose}`);
       if (Array.isArray(phase.humanSteps) && phase.humanSteps.length) {
@@ -394,7 +479,7 @@
 
     lines.push("");
     lines.push("(If needed) Companion GPT link:");
-    lines.push(GPT_URL);
+    lines.push(COMPANION_GPT_URL);
 
     return lines.join("\n").trim() + "\n";
   }
@@ -404,6 +489,8 @@
     lines.push("FluentHour — paste into FluentHour Companion GPT");
     lines.push("");
 
+    if (session?.sessionId) lines.push(`Session ID: ${session.sessionId}`);
+    if (session?.sessionIdea) lines.push(`Session Idea: ${session.sessionIdea}`);
     if (session?.title) lines.push(`Session: ${session.title}`);
     if (session?.levelKey || meta?.levelKey) lines.push(`Level: ${session.levelKey || meta.levelKey}`);
     if (meta?.partner) lines.push(`Helper mode: ${meta.partner}`);
@@ -417,7 +504,9 @@
 
     for (const p of session?.phases || []) {
       lines.push("");
-      lines.push(`- ${p.name} (${p.minutes}m)`);
+      if (p?.phaseId) lines.push(`- Phase ID: ${p.phaseId}`);
+      if (p?.phaseIdea) lines.push(`  Phase Idea: ${p.phaseIdea}`);
+      lines.push(`  Name: ${p.name} (${p.minutes}m)`);
       if (p.purpose) lines.push(`  Purpose: ${p.purpose}`);
       if (Array.isArray(p.humanSteps) && p.humanSteps.length) {
         lines.push("  Human steps:");
@@ -432,7 +521,7 @@
 
     lines.push("");
     lines.push("Companion GPT link:");
-    lines.push(GPT_URL);
+    lines.push(COMPANION_GPT_URL);
 
     return lines.join("\n").trim() + "\n";
   }
@@ -473,34 +562,486 @@
 
   function createBridgeCard() {
     const card = document.createElement("div");
-    card.id = INJECT_ID;
+    card.id = INJECT_ID_COMPANION;
     card.className = "fh-card fh-card--subtle";
 
     card.innerHTML = `
       <div class="fh-card-header">
         <div style="font-weight: 900; letter-spacing: -0.01em;">Send to FluentHour Companion</div>
         <div class="fh-button-group" style="justify-content:flex-end;">
-          <a class="fh-menu-button" href="${GPT_URL}" target="_blank" rel="noreferrer noopener">Open Companion GPT</a>
+          <button class="fh-menu-button" type="button" data-action="toggle-companion" aria-expanded="true">Hide</button>
+          <a class="fh-menu-button" href="${COMPANION_GPT_URL}" target="_blank" rel="noreferrer noopener">Open Companion GPT</a>
         </div>
       </div>
 
-      <div class="fh-text-muted" style="margin-bottom: 10px;">
-        Copy the current phase (or the whole session), open the Companion GPT, paste, and press Enter.
-      </div>
+      <div data-role="bridge-body">
+        <div class="fh-text-muted" style="margin-bottom: 10px;">
+          Copy the current phase (or the whole session), open the Companion GPT, paste, and press Enter.
+        </div>
 
-      <div class="fh-button-group" style="margin-bottom: 8px;">
-        <button class="fh-menu-button" type="button" data-action="copy-phase">Copy this phase</button>
-        <button class="fh-menu-button" type="button" data-action="copy-session">Copy whole session</button>
-        <button class="fh-menu-button" type="button" data-action="copy-open">Copy + Open</button>
-      </div>
+        <div class="fh-button-group" style="margin-bottom: 8px;">
+          <button class="fh-menu-button" type="button" data-action="copy-phase">Copy this phase</button>
+          <button class="fh-menu-button" type="button" data-action="copy-session">Copy whole session</button>
+          <button class="fh-menu-button" type="button" data-action="copy-open">Copy + Open</button>
+        </div>
 
-      <div class="fh-text-muted">
-        Tip: if you want the AI helper script visible on-screen, pause first (then open <b>Advanced</b> → <b>Helper</b>). Copying still includes the script when it exists in the library.
+        <div class="fh-text-muted">
+          Tip: if you want the AI helper script visible on-screen, pause first (then open <b>Advanced</b> → <b>Helper</b>). Copying still includes the script when it exists in the library.
+        </div>
       </div>
     `.trim();
 
+    initCollapsibleCard(card, COLLAPSE_KEY_COMPANION, "toggle-companion");
     return card;
   }
+
+
+  // --- Phase Actor (additional destination) --------------------------------
+
+  function looksUnsetLanguage(name) {
+    const s = String(name || "").trim().toLowerCase();
+    return !s || s === "my language" || s === "my language (default)" || s === "default";
+  }
+
+  function numberToWordsEn(n) {
+    const num = Math.floor(Number(n));
+    if (!isFinite(num) || num < 0) return "";
+    const ones = ["zero","one","two","three","four","five","six","seven","eight","nine","ten","eleven","twelve","thirteen","fourteen","fifteen","sixteen","seventeen","eighteen","nineteen"];
+    const tens = ["","","twenty","thirty","forty","fifty","sixty","seventy","eighty","ninety"];
+
+    function underHundred(x) {
+      if (x < 20) return ones[x];
+      const t = Math.floor(x / 10);
+      const r = x % 10;
+      return r ? `${tens[t]}-${ones[r]}` : tens[t];
+    }
+
+    function underThousand(x) {
+      if (x < 100) return underHundred(x);
+      const h = Math.floor(x / 100);
+      const r = x % 100;
+      if (!r) return `${ones[h]} hundred`;
+      return `${ones[h]} hundred ${underHundred(r)}`;
+    }
+
+    if (num < 1000) return underThousand(num);
+
+    const th = Math.floor(num / 1000);
+    const r = num % 1000;
+    if (!r) return `${underThousand(th)} thousand`;
+    return `${underThousand(th)} thousand ${underThousand(r)}`;
+  }
+
+  function minutesToWordsEn(minutes) {
+    const w = numberToWordsEn(minutes);
+    return w ? `${w} minutes` : "minutes";
+  }
+
+  function buildActorPhasePrompt(session, phase, meta) {
+    const lines = [];
+
+    const targetLanguage = looksUnsetLanguage(meta?.profileName) ? "" : String(meta?.profileName || "").trim();
+
+    lines.push("Fluent Hour — paste into Fluent Hour Phase Actor");
+    lines.push("");
+    lines.push("ROLE");
+    lines.push("- You are the helper. Run this phase as a live conversation.");
+    lines.push("- Speak only in the target language.");
+    lines.push("- If the target language is unclear, ask me which target language to use, then wait.");
+    lines.push("- Keep learner speech level-appropriate but natural and correct.");
+    lines.push("- Helper speech must be native, correct, and clear (not slangy).");
+    lines.push("- Do not use digits; write all numbers out as words in the target language.");
+    lines.push("");
+    lines.push("TARGET LANGUAGE");
+    lines.push(targetLanguage || "(not set — ask me which target language)");
+    lines.push("");
+    if (session?.sessionId) lines.push(`Session ID: ${session.sessionId}`);
+    if (session?.sessionIdea) lines.push(`Session Idea: ${session.sessionIdea}`);
+    if (session?.title) lines.push(`Session: ${session.title}`);
+    if (session?.levelKey || meta?.levelKey) lines.push(`Level: ${session.levelKey || meta.levelKey}`);
+    if (meta?.partner) lines.push(`Helper mode: ${meta.partner}`);
+    if (session?.goal) lines.push(`Goal: ${session.goal}`);
+    if (session?.context) lines.push(`Context: ${session.context}`);
+    if (session?.correction) lines.push(`Correction focus: ${session.correction}`);
+    lines.push("");
+
+    if (phase) {
+      lines.push("PHASE TO RUN");
+      if (phase?.phaseId) lines.push(`Phase ID: ${phase.phaseId}`);
+      if (phase?.phaseIdea) lines.push(`Phase Idea: ${phase.phaseIdea}`);
+      lines.push(`Name: ${phase.name}`);
+      lines.push(`Duration: ${minutesToWordsEn(phase.minutes)}`);
+      if (phase.purpose) lines.push(`Purpose: ${phase.purpose}`);
+      if (Array.isArray(phase.humanSteps) && phase.humanSteps.length) {
+        lines.push("");
+        lines.push("Human steps:");
+        for (const s of phase.humanSteps) lines.push(`- ${s}`);
+      }
+      if (phase.aiScript) {
+        lines.push("");
+        lines.push("AI helper script:");
+        lines.push(phase.aiScript);
+      }
+    }
+
+    lines.push("");
+    lines.push("Phase Actor GPT link:");
+    lines.push(PHASE_ACTOR_GPT_URL);
+
+    return lines.join("\n").trim() + "\n";
+  }
+
+  function buildActorSessionPrompt(session, meta) {
+    const lines = [];
+    const targetLanguage = looksUnsetLanguage(meta?.profileName) ? "" : String(meta?.profileName || "").trim();
+
+    lines.push("Fluent Hour — paste into Fluent Hour Phase Actor");
+    lines.push("");
+    lines.push("ROLE");
+    lines.push("- You are the helper. Run the session phase-by-phase as a live conversation.");
+    lines.push("- Speak only in the target language.");
+    lines.push("- If the target language is unclear, ask me which target language to use, then wait.");
+    lines.push("- Keep learner speech level-appropriate but natural and correct.");
+    lines.push("- Helper speech must be native, correct, and clear (not slangy).");
+    lines.push("- Do not use digits; write all numbers out as words in the target language.");
+    lines.push("");
+    lines.push("TARGET LANGUAGE");
+    lines.push(targetLanguage || "(not set — ask me which target language)");
+    lines.push("");
+    if (session?.sessionId) lines.push(`Session ID: ${session.sessionId}`);
+    if (session?.sessionIdea) lines.push(`Session Idea: ${session.sessionIdea}`);
+    if (session?.title) lines.push(`Session: ${session.title}`);
+    if (session?.levelKey || meta?.levelKey) lines.push(`Level: ${session.levelKey || meta.levelKey}`);
+    if (meta?.partner) lines.push(`Helper mode: ${meta.partner}`);
+    if (session?.goal) lines.push(`Goal: ${session.goal}`);
+    if (session?.context) lines.push(`Context: ${session.context}`);
+    if (session?.correction) lines.push(`Correction focus: ${session.correction}`);
+
+    lines.push("");
+    lines.push("PHASES TO RUN:");
+
+    for (const p of session?.phases || []) {
+      lines.push("");
+      if (p?.phaseId) lines.push(`- Phase ID: ${p.phaseId}`);
+      if (p?.phaseIdea) lines.push(`  Phase Idea: ${p.phaseIdea}`);
+      lines.push(`- Name: ${p.name}`);
+      lines.push(`  Duration: ${minutesToWordsEn(p.minutes)}`);
+      if (p.purpose) lines.push(`  Purpose: ${p.purpose}`);
+      if (Array.isArray(p.humanSteps) && p.humanSteps.length) {
+        lines.push("  Human steps:");
+        for (const s of p.humanSteps) lines.push(`  - ${s}`);
+      }
+      if (p.aiScript) {
+        lines.push("  AI helper script:");
+        const aiLines = String(p.aiScript).split("\n");
+        for (const al of aiLines) lines.push(`  ${al}`);
+      }
+    }
+
+    lines.push("");
+    lines.push("Phase Actor GPT link:");
+    lines.push(PHASE_ACTOR_GPT_URL);
+
+    return lines.join("\n").trim() + "\n";
+  }
+
+  function createActorBridgeCard() {
+    const card = document.createElement("div");
+    card.id = INJECT_ID_ACTOR;
+    card.className = "fh-card fh-card--subtle";
+
+    card.innerHTML = `
+      <div class="fh-card-header">
+        <div style="font-weight: 900; letter-spacing: -0.01em;">Send to Fluent Hour Phase Actor</div>
+        <div class="fh-button-group" style="justify-content:flex-end;">
+          <button class="fh-menu-button" type="button" data-action="toggle-phase-actor" aria-expanded="true">Hide</button>
+          <a class="fh-menu-button" href="${PHASE_ACTOR_GPT_URL}" target="_blank" rel="noreferrer noopener">Open Phase Actor GPT</a>
+        </div>
+      </div>
+
+      <div data-role="bridge-body">
+        <div class="fh-text-muted" style="margin-bottom: 10px;">
+          Copy the current phase (or the whole session), open Phase Actor, paste, and press Enter.
+        </div>
+
+        <div class="fh-button-group" style="margin-bottom: 8px;">
+          <button class="fh-menu-button" type="button" data-action="actor-copy-phase">Copy this phase</button>
+          <button class="fh-menu-button" type="button" data-action="actor-copy-session">Copy whole session</button>
+          <button class="fh-menu-button" type="button" data-action="actor-copy-open">Copy + Open</button>
+        </div>
+
+        <div class="fh-text-muted">
+          Tip: if you want the AI helper script visible on-screen, pause first (then open <b>Advanced</b> → <b>Helper</b>). Copying still includes the script when it exists in the library.
+        </div>
+      </div>
+    `.trim();
+
+    initCollapsibleCard(card, COLLAPSE_KEY_PHASE_ACTOR, "toggle-phase-actor");
+    return card;
+  }
+
+  async function handleActorAction(action, container, btn) {
+    const meta = getSessionDomMeta(container);
+
+    if (!meta || !meta.title) {
+      toast("Couldn’t detect the current session. Open a session first.");
+      return;
+    }
+
+    const original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "Working…";
+
+    try {
+      const { session, phase } = await resolveCurrentSessionAndPhase(meta);
+
+      if (!session) {
+        const learnerCard = Array.from(container.querySelectorAll(":scope > .fh-card"))
+          .find((c) => (c.querySelector(".fh-card-header > div")?.textContent || "").trim() === "Learner");
+
+        const visible = learnerCard ? learnerCard.innerText : container.innerText;
+        const payload = `Fluent Hour — paste into Fluent Hour Phase Actor\n\n${visible}\n\n${PHASE_ACTOR_GPT_URL}\n`;
+
+        const ok = await copyToClipboard(payload);
+        toast(ok ? "Copied (visible text)." : "Copy failed — select text and press Ctrl+C.");
+
+        if (action === "actor-copy-open") {
+          window.open(PHASE_ACTOR_GPT_URL, "_blank", "noopener,noreferrer");
+        }
+        return;
+      }
+
+      let payload = "";
+      if (action === "actor-copy-session") {
+        payload = buildActorSessionPrompt(session, meta);
+      } else {
+        payload = buildActorPhasePrompt(session, phase, meta);
+      }
+
+      const ok = await copyToClipboard(payload);
+      toast(ok ? "Copied to clipboard." : "Copy failed — try again (or press Ctrl+C).");
+
+      if (action === "actor-copy-open") {
+        window.open(PHASE_ACTOR_GPT_URL, "_blank", "noopener,noreferrer");
+      }
+    } catch (err) {
+      toast("Something went wrong while preparing the copy text.");
+      // eslint-disable-next-line no-console
+      console.error("FH Phase Actor Bridge error:", err);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = original;
+    }
+  }
+
+
+  // --- Session Actor (whole-session script + pacing) -----------------------
+
+  function buildSessionActorPhasePrompt(session, phase, meta) {
+    const lines = [];
+    const targetLanguage = looksUnsetLanguage(meta?.profileName) ? "" : String(meta?.profileName || "").trim();
+
+    lines.push("Fluent Hour — paste into Fluent Hour Session Actor");
+    lines.push("");
+    lines.push("ROLE");
+    lines.push("- You are the Fluent Hour Session Actor.");
+    lines.push("- Produce a paced, speakable script for the provided phase (not a chat UI).");
+    lines.push("- Speak only in the target language.");
+    lines.push("- If the target language is unclear, ask me which target language to use, then wait.");
+    lines.push("- Keep learner speech level-appropriate but natural and correct.");
+    lines.push("- Helper speech must be native, correct, and clear (not slangy).");
+    lines.push("- Include WPM pacing projections and approximate word targets; do not use digits.");
+    lines.push("");
+    lines.push("TARGET LANGUAGE");
+    lines.push(targetLanguage || "(not set — ask me which target language)");
+    lines.push("");
+
+    if (session?.sessionId) lines.push(`Session ID: ${session.sessionId}`);
+    if (session?.sessionIdea) lines.push(`Session Idea: ${session.sessionIdea}`);
+    if (session?.title) lines.push(`Session: ${session.title}`);
+    if (session?.levelKey || meta?.levelKey) lines.push(`Level: ${session.levelKey || meta.levelKey}`);
+    if (meta?.partner) lines.push(`Helper mode: ${meta.partner}`);
+    if (session?.goal) lines.push(`Goal: ${session.goal}`);
+    if (session?.context) lines.push(`Context: ${session.context}`);
+    if (session?.correction) lines.push(`Correction focus: ${session.correction}`);
+
+    lines.push("");
+
+    if (phase) {
+      lines.push("PHASE TO SCRIPT");
+      if (phase?.phaseId) lines.push(`Phase ID: ${phase.phaseId}`);
+      if (phase?.phaseIdea) lines.push(`Phase Idea: ${phase.phaseIdea}`);
+      lines.push(`Name: ${phase.name}`);
+      lines.push(`Duration: ${minutesToWordsEn(phase.minutes)}`);
+      if (phase.purpose) lines.push(`Purpose: ${phase.purpose}`);
+
+      if (Array.isArray(phase.humanSteps) && phase.humanSteps.length) {
+        lines.push("");
+        lines.push("Human steps:");
+        for (const s of phase.humanSteps) lines.push(`- ${s}`);
+      }
+
+      if (phase.aiScript) {
+        lines.push("");
+        lines.push("AI helper script:");
+        lines.push(phase.aiScript);
+      }
+    }
+
+    lines.push("");
+    lines.push("Session Actor GPT link:");
+    lines.push(SESSION_ACTOR_GPT_URL);
+
+    return lines.join("\n").trim() + "\n";
+  }
+
+  function buildSessionActorSessionPrompt(session, meta) {
+    const lines = [];
+    const targetLanguage = looksUnsetLanguage(meta?.profileName) ? "" : String(meta?.profileName || "").trim();
+
+    lines.push("Fluent Hour — paste into Fluent Hour Session Actor");
+    lines.push("");
+    lines.push("ROLE");
+    lines.push("- You are the Fluent Hour Session Actor.");
+    lines.push("- Produce ONE continuous script for the entire session (all phases) in one output.");
+    lines.push("- Speak only in the target language.");
+    lines.push("- If the target language is unclear, ask me which target language to use, then wait.");
+    lines.push("- Keep learner speech level-appropriate but natural and correct.");
+    lines.push("- Helper speech must be native, correct, and clear (not slangy).");
+    lines.push("- Include WPM pacing projections and approximate word targets per phase and for the whole session; do not use digits.");
+    lines.push("");
+    lines.push("TARGET LANGUAGE");
+    lines.push(targetLanguage || "(not set — ask me which target language)");
+    lines.push("");
+
+    if (session?.sessionId) lines.push(`Session ID: ${session.sessionId}`);
+    if (session?.sessionIdea) lines.push(`Session Idea: ${session.sessionIdea}`);
+    if (session?.title) lines.push(`Session: ${session.title}`);
+    if (session?.levelKey || meta?.levelKey) lines.push(`Level: ${session.levelKey || meta.levelKey}`);
+    if (meta?.partner) lines.push(`Helper mode: ${meta.partner}`);
+    if (session?.goal) lines.push(`Goal: ${session.goal}`);
+    if (session?.context) lines.push(`Context: ${session.context}`);
+    if (session?.correction) lines.push(`Correction focus: ${session.correction}`);
+
+    lines.push("");
+    lines.push("PHASES TO SCRIPT:");
+
+    for (const p of session?.phases || []) {
+      lines.push("");
+      if (p?.phaseId) lines.push(`- Phase ID: ${p.phaseId}`);
+      if (p?.phaseIdea) lines.push(`  Phase Idea: ${p.phaseIdea}`);
+      lines.push(`  Name: ${p.name}`);
+      lines.push(`  Duration: ${minutesToWordsEn(p.minutes)}`);
+      if (p.purpose) lines.push(`  Purpose: ${p.purpose}`);
+      if (Array.isArray(p.humanSteps) && p.humanSteps.length) {
+        lines.push("  Human steps:");
+        for (const s of p.humanSteps) lines.push(`  - ${s}`);
+      }
+      if (p.aiScript) {
+        lines.push("  AI helper script:");
+        const aiLines = String(p.aiScript).split("\n");
+        for (const al of aiLines) lines.push(`  ${al}`);
+      }
+    }
+
+    lines.push("");
+    lines.push("Session Actor GPT link:");
+    lines.push(SESSION_ACTOR_GPT_URL);
+
+    return lines.join("\n").trim() + "\n";
+  }
+
+  function createSessionActorBridgeCard() {
+    const card = document.createElement("div");
+    card.id = INJECT_ID_SESSION_ACTOR;
+    card.className = "fh-card fh-card--subtle";
+
+    card.innerHTML = `
+      <div class="fh-card-header">
+        <div style="font-weight: 900; letter-spacing: -0.01em;">Send to Fluent Hour Session Actor</div>
+        <div class="fh-button-group" style="justify-content:flex-end;">
+          <button class="fh-menu-button" type="button" data-action="toggle-session-actor" aria-expanded="true">Hide</button>
+          <a class="fh-menu-button" href="${SESSION_ACTOR_GPT_URL}" target="_blank" rel="noreferrer noopener">Open Session Actor GPT</a>
+        </div>
+      </div>
+
+      <div data-role="bridge-body">
+        <div class="fh-text-muted" style="margin-bottom: 10px;">
+          Copy the whole session (recommended) or the current phase, open Session Actor, paste, and press Enter.
+        </div>
+
+        <div class="fh-button-group" style="margin-bottom: 8px;">
+          <button class="fh-menu-button" type="button" data-action="session-actor-copy-phase">Copy this phase</button>
+          <button class="fh-menu-button" type="button" data-action="session-actor-copy-session">Copy whole session</button>
+          <button class="fh-menu-button" type="button" data-action="session-actor-copy-open">Copy + Open</button>
+        </div>
+
+        <div class="fh-text-muted">
+          Tip: if you want the AI helper script visible on-screen, pause first (then open <b>Advanced</b> → <b>Helper</b>). Copying still includes the script when it exists in the library.
+        </div>
+      </div>
+    `.trim();
+
+    initCollapsibleCard(card, COLLAPSE_KEY_SESSION_ACTOR, "toggle-session-actor");
+    return card;
+  }
+
+  async function handleSessionActorAction(action, container, btn) {
+    const meta = getSessionDomMeta(container);
+
+    if (!meta || !meta.title) {
+      toast("Couldn’t detect the current session. Open a session first.");
+      return;
+    }
+
+    const original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "Working…";
+
+    try {
+      const { session, phase } = await resolveCurrentSessionAndPhase(meta);
+
+      if (!session) {
+        const learnerCard = Array.from(container.querySelectorAll(":scope > .fh-card"))
+          .find((c) => (c.querySelector(".fh-card-header > div")?.textContent || "").trim() === "Learner");
+
+        const visible = learnerCard ? learnerCard.innerText : container.innerText;
+        const payload = `Fluent Hour — paste into Fluent Hour Session Actor\n\n${visible}\n\n${SESSION_ACTOR_GPT_URL}\n`;
+
+        const ok = await copyToClipboard(payload);
+        toast(ok ? "Copied (visible text)." : "Copy failed — select text and press Ctrl+C.");
+
+        if (action === "session-actor-copy-open") {
+          window.open(SESSION_ACTOR_GPT_URL, "_blank", "noopener,noreferrer");
+        }
+        return;
+      }
+
+      let payload = "";
+      const wantsSession = action === "session-actor-copy-session" || action === "session-actor-copy-open";
+
+      if (wantsSession) {
+        payload = buildSessionActorSessionPrompt(session, meta);
+      } else {
+        payload = buildSessionActorPhasePrompt(session, phase, meta);
+      }
+
+      const ok = await copyToClipboard(payload);
+      toast(ok ? "Copied to clipboard." : "Copy failed — try again (or press Ctrl+C).");
+
+      if (action === "session-actor-copy-open") {
+        window.open(SESSION_ACTOR_GPT_URL, "_blank", "noopener,noreferrer");
+      }
+    } catch (err) {
+      toast("Something went wrong while preparing the copy text.");
+      // eslint-disable-next-line no-console
+      console.error("FH Session Actor Bridge error:", err);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = original;
+    }
+  }
+
 
   async function handleAction(action, container, btn) {
     const meta = getSessionDomMeta(container);
@@ -523,13 +1064,13 @@
           .find((c) => (c.querySelector(".fh-card-header > div")?.textContent || "").trim() === "Learner");
 
         const visible = learnerCard ? learnerCard.innerText : container.innerText;
-        const payload = `FluentHour — paste into FluentHour Companion GPT\n\n${visible}\n\n${GPT_URL}\n`;
+        const payload = `FluentHour — paste into FluentHour Companion GPT\n\n${visible}\n\n${COMPANION_GPT_URL}\n`;
 
         const ok = await copyToClipboard(payload);
         toast(ok ? "Copied (visible text)." : "Copy failed — select text and press Ctrl+C.");
 
         if (action === "copy-open") {
-          window.open(GPT_URL, "_blank", "noopener,noreferrer");
+          window.open(COMPANION_GPT_URL, "_blank", "noopener,noreferrer");
         }
         return;
       }
@@ -545,7 +1086,7 @@
       toast(ok ? "Copied to clipboard." : "Copy failed — try again (or press Ctrl+C)." );
 
       if (action === "copy-open") {
-        window.open(GPT_URL, "_blank", "noopener,noreferrer");
+        window.open(COMPANION_GPT_URL, "_blank", "noopener,noreferrer");
       }
     } catch (err) {
       toast("Something went wrong while preparing the copy text.");
@@ -557,34 +1098,95 @@
     }
   }
 
-  function ensureInjected() {
+    function ensureInjected() {
     const container = document.querySelector(".fh-container");
     if (!isSessionScreen(container)) {
-      const existing = document.getElementById(INJECT_ID);
-      if (existing) existing.remove();
+      const existingCompanion = document.getElementById(INJECT_ID_COMPANION);
+      if (existingCompanion) existingCompanion.remove();
+      const existingActor = document.getElementById(INJECT_ID_ACTOR);
+      if (existingActor) existingActor.remove();
+      const existingSessionActor = document.getElementById(INJECT_ID_SESSION_ACTOR);
+      if (existingSessionActor) existingSessionActor.remove();
       return;
     }
 
-    if (document.getElementById(INJECT_ID)) return;
+    const hasCompanion = !!document.getElementById(INJECT_ID_COMPANION);
+    const hasActor = !!document.getElementById(INJECT_ID_ACTOR);
+    const hasSessionActor = !!document.getElementById(INJECT_ID_SESSION_ACTOR);
+    if (hasCompanion && hasActor && hasSessionActor) return;
 
-    // Insert right after the top session header card
+    // Insert AFTER the main phase content so the Learner/Advanced cards stay on top.
     const cards = Array.from(container.querySelectorAll(":scope > .fh-card"));
     if (!cards.length) return;
 
     const headerCard = cards[0];
-    const bridge = createBridgeCard();
+    const getHeaderText = (card) => (card?.querySelector(".fh-card-header > div")?.textContent || "").trim();
 
-    headerCard.insertAdjacentElement("afterend", bridge);
+    const advancedCard = cards.find((c) => getHeaderText(c) === "Advanced") || null;
+    const learnerCard = cards.find((c) => getHeaderText(c) === "Learner") || null;
 
-    bridge.addEventListener("click", (e) => {
-      const target = e.target;
-      if (!(target instanceof HTMLElement)) return;
-      const btn = target.closest("button[data-action]");
-      if (!(btn instanceof HTMLButtonElement)) return;
-      const action = btn.getAttribute("data-action");
-      if (!action) return;
-      handleAction(action, container, btn);
-    });
+    // Prefer: Advanced (bottom of main content) → Learner → Header.
+    let anchor = advancedCard || learnerCard || headerCard;
+
+    if (!hasCompanion) {
+      const bridge = createBridgeCard();
+      anchor.insertAdjacentElement("afterend", bridge);
+      anchor = bridge;
+
+      bridge.addEventListener("click", (e) => {
+        const target = e.target;
+        if (!(target instanceof HTMLElement)) return;
+        const btn = target.closest("button[data-action]");
+        if (!(btn instanceof HTMLButtonElement)) return;
+        const action = btn.getAttribute("data-action");
+        if (!action) return;
+        if (action === "toggle-companion") { toggleCollapsibleCard(bridge); return; }
+        handleAction(action, container, btn);
+      });
+    } else {
+      anchor = document.getElementById(INJECT_ID_COMPANION) || headerCard;
+    }
+
+    if (!hasActor) {
+      const actorBridge = createActorBridgeCard();
+      anchor.insertAdjacentElement("afterend", actorBridge);
+      anchor = actorBridge;
+
+      actorBridge.addEventListener("click", (e) => {
+        const target = e.target;
+        if (!(target instanceof HTMLElement)) return;
+        const btn = target.closest("button[data-action]");
+        if (!(btn instanceof HTMLButtonElement)) return;
+        const action = btn.getAttribute("data-action");
+        if (!action) return;
+        if (action === "toggle-phase-actor") { toggleCollapsibleCard(actorBridge); return; }
+        handleActorAction(action, container, btn);
+      });
+    } else {
+      anchor = document.getElementById(INJECT_ID_ACTOR) || anchor;
+    }
+
+    // If Phase Actor already exists, place Session Actor after it.
+    if (hasActor) {
+      anchor = document.getElementById(INJECT_ID_ACTOR) || anchor;
+    }
+
+    if (!hasSessionActor) {
+      const sessionBridge = createSessionActorBridgeCard();
+      anchor.insertAdjacentElement("afterend", sessionBridge);
+      anchor = sessionBridge;
+
+      sessionBridge.addEventListener("click", (e) => {
+        const target = e.target;
+        if (!(target instanceof HTMLElement)) return;
+        const btn = target.closest("button[data-action]");
+        if (!(btn instanceof HTMLButtonElement)) return;
+        const action = btn.getAttribute("data-action");
+        if (!action) return;
+        if (action === "toggle-session-actor") { toggleCollapsibleCard(sessionBridge); return; }
+        handleSessionActorAction(action, container, btn);
+      });
+    }
   }
 
   // Watch for client-side navigation / rerenders

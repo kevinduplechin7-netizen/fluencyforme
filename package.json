@@ -1,15 +1,14 @@
 {
-  "name": "fluenthourpremium-companion-bridge",
-  "version": "1.0.0",
+  "name": "fluenthour-language-sessions",
   "private": true,
+  "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "serve -s . -l 5173",
-    "start": "serve -s . -l 5173",
-    "build": "node scripts/build.mjs",
-    "preview": "serve -s dist -l 4173"
+    "dev": "vite --host",
+    "build": "node scripts/build.js",
+    "preview": "vite preview --host"
   },
-  "dependencies": {
-    "serve": "^14.2.1"
+  "devDependencies": {
+    "vite": "^5.4.0"
   }
 }

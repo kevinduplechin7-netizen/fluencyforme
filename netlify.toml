@@ -4,3 +4,9 @@
 
 [build.environment]
   NODE_VERSION = "20"
+
+# SPA fallback (keeps your in-app routing working)
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
