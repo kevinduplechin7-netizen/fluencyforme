@@ -1,26 +1,16 @@
-# FluentHour Language Sessions (Static-first)
+# FluentHour (Runnable Static Repo)
 
-This repo is a static site packaged with a tiny Vite wrapper so it can:
-- run locally with `npm run dev`
-- build a Netlify-deployable `dist/` folder with `npm run build`
+This repo is **static-first**: the app files in the repo root are already built.
+- `npm run dev` starts a local server (Vite) to run it.
+- `npm run build` copies the static site into `dist/` for Netlify (`publish = dist`).
 
-## Local dev
+## Local run (Windows)
+Right-click: `RUN_DEV.ps1`
 
-```powershell
-npm install
-npm run dev
-```
-
-Or run:
-
-```powershell
-./RUN_DEV.ps1
-```
+Or manually:
+- `npm ci`
+- `npm run dev`
 
 ## Netlify
-
-Netlify uses:
-- Build command: `npm run build`
-- Publish directory: `dist`
-
-Those are already set in `netlify.toml`.
+Build command: `npm run build`
+Publish directory: `dist`

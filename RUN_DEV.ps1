@@ -1,8 +1,9 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-# Run from the extracted folder
-if (Test-Path "package-lock.json") {
+Write-Host "FluentHour - local dev runner" -ForegroundColor Cyan
+
+if (Test-Path -LiteralPath "package-lock.json") {
   npm ci
 } else {
   npm install
