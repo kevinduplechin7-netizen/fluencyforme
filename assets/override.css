@@ -645,3 +645,546 @@ textarea:focus-visible {
     transition: none;
   }
 }
+
+/* -----------------------------
+   Tutorial Section
+   How-to-use modal with multi-step walkthrough
+------------------------------ */
+
+.fh-tutorial-btn {
+  appearance: none;
+  -webkit-appearance: none;
+  font: inherit;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--fh-accent);
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease, border-color 120ms ease;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+  user-select: none;
+  touch-action: manipulation;
+  margin-right: 8px;
+}
+
+.fh-tutorial-btn:hover {
+  background: rgba(255, 255, 255, 0.96);
+  border-color: var(--fh-accent);
+  transform: translateY(-1px);
+}
+
+.fh-tutorial-btn:active {
+  transform: translateY(1px);
+}
+
+.fh-tutorial-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+/* Tutorial modal backdrop */
+.fh-tutorial-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  z-index: 9999;
+  animation: fhFadeIn 200ms ease-out;
+}
+
+.fh-tutorial-modal {
+  width: min(680px, 94vw);
+  max-height: min(85vh, 720px);
+  display: flex;
+  flex-direction: column;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 20px;
+  box-shadow: 0 32px 80px rgba(15, 23, 42, 0.35);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  animation: fhCardIn 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.fh-tutorial-hdr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 16px 12px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.fh-tutorial-progress {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.fh-tutorial-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.15);
+  cursor: pointer;
+  transition: background 180ms ease, transform 180ms ease;
+}
+
+.fh-tutorial-dot:hover {
+  background: rgba(15, 23, 42, 0.30);
+  transform: scale(1.15);
+}
+
+.fh-tutorial-dot--active {
+  background: var(--fh-accent);
+  transform: scale(1.2);
+}
+
+.fh-tutorial-dot--done {
+  background: rgba(0, 102, 255, 0.45);
+}
+
+.fh-tutorial-close {
+  appearance: none;
+  -webkit-appearance: none;
+  font: inherit;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: rgba(255, 255, 255, 0.78);
+  color: rgba(15, 23, 42, 0.92);
+  font-size: 20px;
+  cursor: pointer;
+  transition: transform 120ms ease, background 120ms ease, border-color 120ms ease;
+}
+
+.fh-tutorial-close:hover {
+  background: rgba(255, 255, 255, 0.96);
+  border-color: rgba(15, 23, 42, 0.16);
+}
+
+.fh-tutorial-close:active {
+  transform: translateY(1px);
+}
+
+.fh-tutorial-close:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+.fh-tutorial-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 24px;
+  color: rgba(15, 23, 42, 0.88);
+}
+
+.fh-tutorial-title {
+  margin: 0 0 16px 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: rgba(15, 23, 42, 0.94);
+  letter-spacing: -0.02em;
+}
+
+.fh-tutorial-content {
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.fh-tutorial-content p {
+  margin: 10px 0;
+}
+
+.fh-tutorial-content strong {
+  color: rgba(15, 23, 42, 0.94);
+}
+
+.fh-tutorial-content code {
+  background: rgba(15, 23, 42, 0.08);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.fh-tutorial-content ul {
+  margin: 10px 0;
+  padding-left: 20px;
+}
+
+.fh-tutorial-content li {
+  margin: 6px 0;
+}
+
+/* Phase structure cards */
+.fh-tutorial-phases {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.fh-tutorial-phase {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.70);
+  border: 1px solid rgba(15, 23, 42, 0.10);
+  border-radius: 12px;
+}
+
+.fh-tutorial-phase-num {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  border-radius: 999px;
+  background: var(--fh-accent);
+  color: white;
+  font-weight: 700;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fh-tutorial-phase em {
+  color: rgba(15, 23, 42, 0.60);
+  font-style: normal;
+  font-size: 13px;
+}
+
+/* Level badges */
+.fh-tutorial-levels {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 14px 0;
+}
+
+.fh-tutorial-level {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.65);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 10px;
+}
+
+.fh-tutorial-level-badge {
+  min-width: 36px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 12px;
+  text-align: center;
+  color: white;
+}
+
+.fh-level-a1 { background: #22c55e; }
+.fh-level-a2 { background: #84cc16; }
+.fh-level-b1 { background: #eab308; }
+.fh-level-b2 { background: #f97316; }
+.fh-level-c1 { background: #ef4444; }
+.fh-level-c2 { background: #a855f7; }
+
+.fh-tutorial-tip {
+  margin-top: 14px;
+  padding: 10px 12px;
+  background: rgba(0, 102, 255, 0.08);
+  border-left: 3px solid var(--fh-accent);
+  border-radius: 0 8px 8px 0;
+  font-size: 14px;
+  color: rgba(15, 23, 42, 0.82);
+}
+
+/* Companion section */
+.fh-tutorial-companion-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 14px 0;
+}
+
+.fh-tutorial-companion-step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.65);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 10px;
+}
+
+.fh-tutorial-step-num {
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.12);
+  color: rgba(15, 23, 42, 0.80);
+  font-weight: 600;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fh-tutorial-commands {
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.60);
+  border: 1px solid rgba(15, 23, 42, 0.10);
+  border-radius: 12px;
+}
+
+.fh-tutorial-commands ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  font-size: 14px;
+}
+
+/* Tips section */
+.fh-tutorial-tips {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.fh-tutorial-tip-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.70);
+  border: 1px solid rgba(15, 23, 42, 0.10);
+  border-radius: 12px;
+}
+
+.fh-tutorial-tip-icon {
+  font-size: 24px;
+  line-height: 1;
+}
+
+/* Ready/Final step */
+.fh-tutorial-ready {
+  text-align: center;
+  padding: 20px 10px;
+}
+
+.fh-tutorial-ready-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+.fh-tutorial-cta {
+  margin-top: 20px;
+  padding: 12px 16px;
+  background: rgba(0, 102, 255, 0.08);
+  border-radius: 10px;
+  font-size: 14px;
+  color: rgba(15, 23, 42, 0.80);
+}
+
+/* Footer navigation */
+.fh-tutorial-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.fh-tutorial-nav {
+  appearance: none;
+  -webkit-appearance: none;
+  font: inherit;
+  padding: 10px 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: rgba(255, 255, 255, 0.78);
+  color: rgba(15, 23, 42, 0.88);
+  font-weight: 500;
+  font-size: 14px;
+  cursor: pointer;
+  transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease, border-color 120ms ease;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+
+.fh-tutorial-nav:hover {
+  background: rgba(255, 255, 255, 0.96);
+  border-color: rgba(15, 23, 42, 0.18);
+  transform: translateY(-1px);
+}
+
+.fh-tutorial-nav:active {
+  transform: translateY(1px);
+}
+
+.fh-tutorial-nav:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+.fh-tutorial-nav--primary {
+  background: var(--fh-accent);
+  border-color: var(--fh-accent);
+  color: white;
+}
+
+.fh-tutorial-nav--primary:hover {
+  background: #0052cc;
+  border-color: #0052cc;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 640px) {
+  .fh-tutorial-modal {
+    width: 100%;
+    max-width: 100%;
+    max-height: 90vh;
+    border-radius: 16px 16px 0 0;
+    position: fixed;
+    bottom: 0;
+  }
+
+  .fh-tutorial-backdrop {
+    padding: 0;
+    align-items: flex-end;
+  }
+
+  .fh-tutorial-body {
+    padding: 16px 18px;
+  }
+
+  .fh-tutorial-title {
+    font-size: 20px;
+  }
+
+  .fh-tutorial-content {
+    font-size: 14px;
+  }
+
+  .fh-tutorial-phase,
+  .fh-tutorial-level,
+  .fh-tutorial-companion-step,
+  .fh-tutorial-tip-item {
+    padding: 10px 12px;
+  }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .fh-tutorial-btn {
+    background: rgba(15, 23, 42, 0.62);
+    border-color: rgba(255, 255, 255, 0.10);
+    color: rgba(255, 255, 255, 0.90);
+  }
+
+  .fh-tutorial-btn:hover {
+    background: rgba(15, 23, 42, 0.80);
+    border-color: var(--fh-accent);
+  }
+
+  .fh-tutorial-modal {
+    background: rgba(15, 23, 42, 0.92);
+    border-color: rgba(255, 255, 255, 0.10);
+  }
+
+  .fh-tutorial-hdr {
+    border-color: rgba(255, 255, 255, 0.08);
+  }
+
+  .fh-tutorial-dot {
+    background: rgba(255, 255, 255, 0.20);
+  }
+
+  .fh-tutorial-dot:hover {
+    background: rgba(255, 255, 255, 0.35);
+  }
+
+  .fh-tutorial-close {
+    background: rgba(15, 23, 42, 0.70);
+    border-color: rgba(255, 255, 255, 0.10);
+    color: rgba(255, 255, 255, 0.90);
+  }
+
+  .fh-tutorial-body {
+    color: rgba(255, 255, 255, 0.88);
+  }
+
+  .fh-tutorial-title {
+    color: rgba(255, 255, 255, 0.94);
+  }
+
+  .fh-tutorial-content strong {
+    color: rgba(255, 255, 255, 0.94);
+  }
+
+  .fh-tutorial-content code {
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  .fh-tutorial-phase,
+  .fh-tutorial-level,
+  .fh-tutorial-companion-step,
+  .fh-tutorial-tip-item,
+  .fh-tutorial-commands {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.08);
+  }
+
+  .fh-tutorial-step-num {
+    background: rgba(255, 255, 255, 0.15);
+    color: rgba(255, 255, 255, 0.80);
+  }
+
+  .fh-tutorial-tip,
+  .fh-tutorial-cta {
+    background: rgba(0, 102, 255, 0.15);
+    color: rgba(255, 255, 255, 0.82);
+  }
+
+  .fh-tutorial-footer {
+    border-color: rgba(255, 255, 255, 0.08);
+  }
+
+  .fh-tutorial-nav {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.10);
+    color: rgba(255, 255, 255, 0.88);
+  }
+
+  .fh-tutorial-nav:hover {
+    background: rgba(255, 255, 255, 0.14);
+    border-color: rgba(255, 255, 255, 0.16);
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .fh-tutorial-backdrop,
+  .fh-tutorial-modal {
+    animation: none;
+  }
+
+  .fh-tutorial-btn,
+  .fh-tutorial-close,
+  .fh-tutorial-nav,
+  .fh-tutorial-dot {
+    transition: none;
+  }
+}
